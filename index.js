@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import bcrypt from 'bcrypt';
 import joi from 'joi';
+import { v4 as uuid } from 'uuid';
 import { MongoClient } from 'mongodb';
 dotenv.config();
 
@@ -29,7 +30,14 @@ const loginSchema = joi.object({
     password: joi.string().pattern(new RegExp('^[a-zA-Z0-9]{3,30}$'))
 });
 
-server.post('/sing-up', async (req, res) => {
+const spentSchema = joi.object({
+    date: joi.date().required(),
+    description: joi.string().min(5).max(60).required(),
+    value: joi.number().required(),
+    type: joi.string().valid('entrada', 'saída')
+});
+
+server.post('/sign-up', async (req, res) => {
     const singUp = req.body;
 
     const validation = createSchema.validate(singUp, { abortEarly: false });
@@ -61,8 +69,9 @@ server.get('/users', (req, res) => {
         res.send(users);
     });
 });
+/* Utilizado para verificação de participantes*/
 
-server.post('/sing-in', async (req, res) => {
+server.post('/sign-in', async (req, res) => {
     const singIn = req.body;
 
     const validation = loginSchema.validate(singIn, { abortEarly: false });
@@ -71,40 +80,66 @@ server.post('/sing-in', async (req, res) => {
     }
     try {
         const promisse = await db.collection("users").findOne({email: singIn.email});
-        if (promisse === null) {
+        if (promisse && bcrypt.compareSync(singIn.password, promisse.password)) {
+            const token = uuid();
+            await db.collection("sessions").insertOne({
+                userID: promisse._id,
+                token
+            });
+            const answer = {
+                name: promisse.name,
+                token
+            }
+            return res.status(200).send(answer);
+        } else {
             return res.status(404).send({error: 'Usuário inexistente'});
         }
-        
-        const password = bcrypt.compareSync(singIn.password, promisse.password);
-        if(password) {
-            return res.status(200).send(promisse);
-        } else {
-            return res.sendStatus(406);
-        }
     } catch (error) {
         return res.status(500).send(error.message);
     }
 });
 
-server.get('/mywallet', async (req, res) => {
+server.post('/new-spent', async (req, res) => {
+    const { authorization } = req.headers;
+    const token = authorization?.replace('Bearer ', '');
+    if (!token) return res.sendStatus(401);
+
+    const spent = req.body;
+
+    const validation = spentSchema.validate(spent, { abortEarly: false });
+    if (validation.error) {
+        return res.status(401).send(validation.error.details.map(value => value.message));
+    }
     try {
-        
+        const session = await db.collection("sessions").findOne({token});
+        if (!session) return res.sendStatus(401);
+
+        const user = await db.collection("users").findOne({_id: session.userID});
+        if (!user) return res.sendStatus(401);
+
+        await db.collection("wallet").insertOne({...spent, name: user.name});
+        res.sendStatus(201);
     } catch (error) {
         return res.status(500).send(error.message);
     }
 });
 
-server.post('/new-entry', async (req, res) => {
-    try {
-        
-    } catch (error) {
-        return res.status(500).send(error.message);
-    }
-});
+server.get('/my-wallet', async (req, res) => {
+    const { authorization } = req.headers;
+    const token = authorization?.replace('Bearer ', '');
+    if (!token) return res.sendStatus(401);
 
-server.post('/new-output', async (req, res) => {
     try {
-        
+        const session = await db.collection("sessions").findOne({token});
+        if (!session) return res.sendStatus(401);
+
+        const user = await db.collection("users").findOne({_id: session.userID});
+        if (!user) return res.sendStatus(401);
+
+        const promisse = await db.collection("wallet").find().toArray();
+
+        const answer = promisse.filter(value => value.name === user.name)
+        res.send(answer);
     } catch (error) {
         return res.status(500).send(error.message);
     }
