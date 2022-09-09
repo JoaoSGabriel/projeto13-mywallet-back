@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 import bcrypt from 'bcrypt';
 import joi from 'joi';
 import { v4 as uuid } from 'uuid';
-import { MongoClient } from 'mongodb';
+import { MongoClient, ObjectId } from 'mongodb';
 dotenv.config();
 
 const server = express();
@@ -104,9 +104,9 @@ server.post('/new-spent', async (req, res) => {
     const token = authorization?.replace('Bearer ', '');
     if (!token) return res.sendStatus(401);
 
-    const spent = req.body;
+    const {date, description, value, type} = req.body;
 
-    const validation = spentSchema.validate(spent, { abortEarly: false });
+    const validation = spentSchema.validate(req.body, { abortEarly: false });
     if (validation.error) {
         return res.status(401).send(validation.error.details.map(value => value.message));
     }
@@ -117,7 +117,12 @@ server.post('/new-spent', async (req, res) => {
         const user = await db.collection("users").findOne({_id: session.userID});
         if (!user) return res.sendStatus(401);
 
-        await db.collection("wallet").insertOne({...spent, name: user.name});
+        await db.collection("wallet").insertOne({
+            date: date,
+            description: description,
+            value: value,
+            type: type,
+            name: user.name});
         res.sendStatus(201);
     } catch (error) {
         return res.status(500).send(error.message);
@@ -140,6 +145,24 @@ server.get('/my-wallet', async (req, res) => {
 
         const answer = promisse.filter(value => value.name === user.name)
         res.send(answer);
+    } catch (error) {
+        return res.status(500).send(error.message);
+    }
+});
+
+server.delete('/my-wallet/:id', async (req,res) => {
+    const { authorization } = req.headers;
+    const token = authorization?.replace('Bearer ', '');
+    if (!token) return res.sendStatus(401);
+
+    const { id } = req.params;
+
+    try {
+        const promisse = await db.collection("wallet").findOne({_id: new ObjectId(id)})
+        if (promisse === null) return res.sendStatus(404);
+        
+        await db.collection("wallet").deleteOne({_id: new ObjectId(id)});
+        res.sendStatus(200);
     } catch (error) {
         return res.status(500).send(error.message);
     }
