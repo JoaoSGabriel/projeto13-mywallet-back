@@ -150,7 +150,7 @@ server.get('/my-wallet', async (req, res) => {
     }
 });
 
-server.delete('/my-wallet/:id', async (req,res) => {
+server.delete('/my-wallet/:id', async (req, res) => {
     const { authorization } = req.headers;
     const token = authorization?.replace('Bearer ', '');
     if (!token) return res.sendStatus(401);
@@ -160,8 +160,26 @@ server.delete('/my-wallet/:id', async (req,res) => {
     try {
         const promisse = await db.collection("wallet").findOne({_id: new ObjectId(id)})
         if (promisse === null) return res.sendStatus(404);
-        
+
         await db.collection("wallet").deleteOne({_id: new ObjectId(id)});
+        res.sendStatus(200);
+    } catch (error) {
+        return res.status(500).send(error.message);
+    }
+});
+
+server.put('/my-wallet/:id', async (req, res) => {
+    const { authorization } = req.headers;
+    const token = authorization?.replace('Bearer ', '');
+    if (!token) return res.sendStatus(401);
+
+    const {id} = req.params;
+
+    try {
+        const promisse = await db.collection("wallet").findOne({_id: new ObjectId(id)})
+        if (promisse === null) return res.sendStatus(404);
+
+        await db.collection("wallet").updateOne({_id: new ObjectId(id)}, {$set: req.body});
         res.sendStatus(200);
     } catch (error) {
         return res.status(500).send(error.message);
