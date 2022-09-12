@@ -1,7 +1,11 @@
 import { Router } from "express";
 import { createSpent, getSpent, deleteSPent, updateSpent } from "../controllers/spentController.js";
+import privateToken from "../middlewares/authorizationMiddleware.js";
 
 const spentRouter = Router();
+
+
+spentRouter.use(privateToken);
 
 spentRouter.post('/new-spent', createSpent);
 spentRouter.get('/my-wallet', getSpent);

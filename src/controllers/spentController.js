@@ -3,10 +3,6 @@ import { spentSchema } from '../schemas/spentSchema.js';
 import { ObjectId } from 'mongodb';
 
 export async function createSpent(req, res) {
-    const { authorization } = req.headers;
-    const token = authorization?.replace('Bearer ', '');
-    if (!token) return res.sendStatus(401);
-
     const {date, description, value, type} = req.body;
 
     const validation = spentSchema.validate(req.body, { abortEarly: false });
@@ -14,11 +10,7 @@ export async function createSpent(req, res) {
         return res.status(401).send(validation.error.details.map(value => value.message));
     }
     try {
-        const session = await db.collection("sessions").findOne({token});
-        if (!session) return res.sendStatus(401);
-
-        const user = await db.collection("users").findOne({_id: session.userID});
-        if (!user) return res.sendStatus(401);
+        const user = res.locals.user;
 
         await db.collection("wallet").insertOne({
             date: date,
@@ -33,16 +25,8 @@ export async function createSpent(req, res) {
 };
 
 export async function getSpent(req, res) {
-    const { authorization } = req.headers;
-    const token = authorization?.replace('Bearer ', '');
-    if (!token) return res.sendStatus(401);
-
     try {
-        const session = await db.collection("sessions").findOne({token});
-        if (!session) return res.sendStatus(401);
-
-        const user = await db.collection("users").findOne({_id: session.userID});
-        if (!user) return res.sendStatus(401);
+        const user = res.locals.user;
 
         const promisse = await db.collection("wallet").find().toArray();
 
@@ -54,10 +38,6 @@ export async function getSpent(req, res) {
 };
 
 export async function deleteSPent(req, res) {
-    const { authorization } = req.headers;
-    const token = authorization?.replace('Bearer ', '');
-    if (!token) return res.sendStatus(401);
-
     const { id } = req.params;
 
     try {
@@ -72,10 +52,6 @@ export async function deleteSPent(req, res) {
 };
 
 export async function updateSpent(req, res) {
-    const { authorization } = req.headers;
-    const token = authorization?.replace('Bearer ', '');
-    if (!token) return res.sendStatus(401);
-
     const {id} = req.params;
 
     try {
